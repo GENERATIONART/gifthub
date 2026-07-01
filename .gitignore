@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+*.tsbuildinfo
+
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+.vite

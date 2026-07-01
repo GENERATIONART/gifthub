@@ -1,0 +1,537 @@
+/* ============================================================================
+   Fondly — Luxe design system (responsive production build)
+   Tokens transcribed from the handoff README. Structure/responsive behavior
+   lives in classes here; fine visual detail stays inline in components
+   ("inline styles = exact spec"). The accent `--g` is themeable at runtime.
+   ============================================================================ */
+
+:root {
+  /* Jewel accent — default periwinkle (overridden at runtime by ThemeProvider) */
+  --g: #7d8cf0;
+
+  /* bg */
+  --bg-app: #0e0f12;
+  --bg-app-alt: #0a0b0d;
+  --bg-screen: #15171c;
+  --bg-card: #191c22;
+  --bg-card-alt: #1d2026;
+  --bg-bar: #101216;
+  --bg-bar-alt: #0c0d10;
+  --surface-raised: #23262d;
+
+  /* text */
+  --t-primary: #f3f5f3;
+  --t-body: #eef0ef;
+  --t-secondary: #aeb3b9;
+  --t-muted: #9aa0a7;
+  --t-faint: #767c83;
+  --t-faintest: #6b7178;
+  --t-dim: #5f656c;
+
+  /* lines */
+  --line: 1px solid rgba(220, 226, 230, 0.12);
+  --line-subtle: 1px solid rgba(220, 226, 230, 0.08);
+  --line-faint: 1px solid rgba(220, 226, 230, 0.07);
+
+  /* fonts */
+  --f-display: "Bodoni Moda", Georgia, serif;
+  --f-ui: "Jost", system-ui, sans-serif;
+  --f-mono: ui-monospace, Menlo, monospace;
+
+  /* layout metrics */
+  --nav-w: 252px;
+  --panel-w: 368px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+}
+
+/* Clip off-canvas drawers so they never add horizontal scroll on mobile. */
+html,
+body {
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--f-ui);
+  background: var(--bg-app);
+  color: var(--t-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Slim luxe scrollbars */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(220, 226, 230, 0.1);
+  border-radius: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* ------------------------------------------------------------- motion ---- */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+@keyframes shimmer {
+  0% { background-position: -280px 0; }
+  100% { background-position: 280px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================ APP SHELL ==
+   Three-pane on desktop → nav drawer + bottom tabs + panel drawer on mobile.
+   Breakpoints: panel collapses <1200px, nav collapses <900px.            */
+
+.shell {
+  display: flex;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-screen);
+}
+
+.nav {
+  width: var(--nav-w);
+  flex: none;
+  background: var(--bg-bar);
+  border-right: var(--line-faint);
+  display: flex;
+  flex-direction: column;
+  padding: 22px 16px 16px;
+  z-index: 40;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  position: relative;
+}
+
+.panel {
+  width: var(--panel-w);
+  flex: none;
+  background: var(--bg-bar);
+  border-left: var(--line-faint);
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+}
+
+/* Mobile chrome — hidden on desktop */
+.topbar,
+.bottomtabs,
+.backdrop,
+.assistant-fab {
+  display: none;
+}
+
+/* Assistant FAB: only where panel is a drawer but the top bar is absent. */
+@media (min-width: 901px) and (max-width: 1200px) {
+  .assistant-fab {
+    display: flex !important;
+  }
+}
+
+/* --- Below 1200px: right AI panel becomes a slide-over drawer --- */
+@media (max-width: 1200px) {
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+    box-shadow: -30px 0 80px rgba(0, 0, 0, 0.5);
+    max-width: 92vw;
+  }
+  .panel.open {
+    transform: translateX(0);
+  }
+}
+
+/* --- Below 900px: left nav becomes off-canvas; top bar + bottom tabs show --- */
+@media (max-width: 900px) {
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+    box-shadow: 30px 0 80px rgba(0, 0, 0, 0.5);
+    max-width: 84vw;
+  }
+  .nav.open {
+    transform: translateX(0);
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: none;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--bg-bar);
+    border-bottom: var(--line-faint);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .bottomtabs {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    flex: none;
+    height: 64px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    background: var(--bg-bar);
+    border-top: var(--line-faint);
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+  }
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 35;
+    opacity: 0;
+    animation: fadeIn 0.2s ease forwards;
+  }
+  /* On mobile the shell stacks: [main]; nav/panel float over. */
+  .shell {
+    flex-direction: column;
+  }
+  .main {
+    order: 2;
+  }
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+/* ============================================================= SCREENS == */
+
+.screen {
+  padding: 40px 48px 56px;
+  animation: fadeUp 0.4s ease both;
+}
+@media (max-width: 1024px) {
+  .screen { padding: 32px 32px 48px; }
+}
+@media (max-width: 900px) {
+  .screen { padding: 24px 20px 40px; }
+}
+
+.screen-narrow { max-width: 880px; }
+.screen-mid { max-width: 760px; }
+
+/* Fluid display headings (Bodoni). */
+.hero {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: clamp(28px, 1.4rem + 2vw, 40px);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  color: var(--t-primary);
+}
+.hero-lg {
+  font-size: clamp(32px, 1.6rem + 3vw, 46px);
+}
+.hero i,
+.hero em {
+  font-style: italic;
+  color: var(--g);
+}
+
+.eyebrow {
+  font: 600 10px/1 var(--f-ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--t-faint);
+}
+.eyebrow-accent {
+  color: var(--g);
+  letter-spacing: 0.2em;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.lede {
+  margin: 14px 0 0;
+  font: 400 15px/1.55 var(--f-ui);
+  color: var(--t-muted);
+  max-width: 56ch;
+}
+@media (max-width: 900px) {
+  .lede { font-size: 14px; }
+}
+
+/* Responsive grids ------------------------------------------------------- */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+/* asymmetric split used by profile/approve/tracking/reaction/history */
+.split { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 28px; align-items: start; }
+.split-even { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+
+@media (max-width: 1024px) {
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .grid-4 { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 720px) {
+  .grid-2,
+  .grid-3,
+  .split,
+  .split-even { grid-template-columns: 1fr; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Reusable surfaces ------------------------------------------------------ */
+.card {
+  background: var(--bg-card);
+  border: var(--line-subtle);
+  border-radius: 16px;
+}
+.hit {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.focusring:focus-visible {
+  outline: 2px solid var(--g);
+  outline-offset: 2px;
+}
+
+/* Discover results grid: hero (spans 2 rows) + 2×2 small cards. */
+.discover-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 1024px) {
+  .discover-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .discover-grid > :first-child {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+}
+@media (max-width: 560px) {
+  .discover-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Picks card hover lift (desktop pointers only). */
+@media (hover: hover) {
+  .pick-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .pick-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* The AI-panel close button only exists when the panel is a drawer (<1200px). */
+@media (min-width: 1201px) {
+  .panel-close {
+    display: none !important;
+  }
+}
+
+/* Responsive show/hide helpers. */
+@media (max-width: 640px) {
+  .hide-sm { display: none !important; }
+}
+@media (min-width: 641px) {
+  .show-sm { display: none !important; }
+}
+
+/* ========================================================= STANDALONE ====
+   Landing / Auth / Onboarding — full-page responsive layouts.               */
+
+.page {
+  min-height: 100dvh;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden; /* constrain formatting width so nothing overflows sideways */
+}
+
+/* Landing */
+.lp {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.lp-section {
+  padding: 88px 64px 40px;
+}
+.lp-pad {
+  padding-left: 64px;
+  padding-right: 64px;
+}
+@media (max-width: 900px) {
+  /* Beat inline horizontal padding so nothing overflows on mobile. */
+  .lp-section { padding-top: 56px; padding-bottom: 24px; padding-left: 24px !important; padding-right: 24px !important; }
+  .lp-pad { padding-left: 24px !important; padding-right: 24px !important; }
+  .lp-cta-inner { margin-left: 0 !important; margin-right: 0 !important; padding: 48px 24px !important; }
+}
+.lp-h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: clamp(40px, 5vw + 1rem, 76px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--t-primary);
+}
+.lp-h2 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: clamp(30px, 3vw + 1rem, 50px);
+  line-height: 1.08;
+  color: var(--t-primary);
+}
+.lp-hero {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 40px;
+  align-items: center;
+}
+.lp-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 56px;
+  align-items: center;
+}
+.lp-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+@media (max-width: 900px) {
+  .lp-hero { grid-template-columns: 1fr; gap: 32px; }
+  .lp-split { grid-template-columns: 1fr; gap: 32px; }
+  .lp-3 { grid-template-columns: 1fr; }
+  .lp-hero-card { order: -1; }
+}
+.lp-navlinks {
+  display: flex;
+  align-items: center;
+  gap: 38px;
+}
+@media (max-width: 720px) {
+  .lp-navlinks a { display: none; }
+}
+
+/* Auth / Onboarding two-pane → single column on mobile */
+.duo {
+  display: flex;
+  min-height: 100dvh;
+}
+.duo-form {
+  width: 50%;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 48px 72px 44px;
+}
+.duo-brand {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+@media (max-width: 960px) {
+  .duo { flex-direction: column; }
+  .duo-form { width: 100%; padding: 32px 24px; min-height: auto; }
+  .duo-brand { display: none; }
+}
+.onb {
+  display: flex;
+  min-height: 100dvh;
+}
+.onb-form {
+  width: 56%;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 44px 64px 40px;
+}
+.onb-panel {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-bar);
+  border-left: var(--line-faint);
+  display: flex;
+  flex-direction: column;
+  padding: 44px 48px;
+}
+@media (max-width: 960px) {
+  .onb { flex-direction: column; }
+  .onb-form { width: 100%; padding: 28px 22px; }
+  .onb-panel { border-left: none; border-top: var(--line-faint); padding: 28px 22px; }
+}
