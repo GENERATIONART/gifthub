@@ -162,14 +162,28 @@ button {
   position: relative;
 }
 
+/* The assistant is a pop-out overlay at every breakpoint (not a permanently
+   docked rail) — content gets the full content-area width, and the
+   assistant is opt-in via the FAB / top-bar button. */
 .panel {
   width: var(--panel-w);
+  max-width: 92vw;
   flex: none;
   background: var(--bg-bar);
   border-left: var(--line-faint);
   display: flex;
   flex-direction: column;
   z-index: 40;
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+  box-shadow: -30px 0 80px rgba(0, 0, 0, 0.5);
+}
+.panel.open {
+  transform: translateX(0);
 }
 
 /* Mobile chrome — hidden on desktop */
@@ -180,27 +194,11 @@ button {
   display: none;
 }
 
-/* Assistant FAB: only where panel is a drawer but the top bar is absent. */
-@media (min-width: 901px) and (max-width: 1200px) {
+/* Assistant FAB: pop-out trigger everywhere the top bar isn't shown
+   (the top bar carries its own trigger below 900px). */
+@media (min-width: 901px) {
   .assistant-fab {
     display: flex !important;
-  }
-}
-
-/* --- Below 1200px: right AI panel becomes a slide-over drawer --- */
-@media (max-width: 1200px) {
-  .panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    height: 100dvh;
-    transform: translateX(100%);
-    transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
-    box-shadow: -30px 0 80px rgba(0, 0, 0, 0.5);
-    max-width: 92vw;
-  }
-  .panel.open {
-    transform: translateX(0);
   }
 }
 
@@ -328,7 +326,12 @@ button {
 
 /* Responsive grids ------------------------------------------------------- */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+/* Fluid, not stepped: column count grows continuously with available width
+   instead of jumping 1 → 2 → 3 at fixed breakpoints. Flex (not grid) so the
+   LAST row fills too — its cards grow to consume the full width rather than
+   leaving empty phantom columns on the right the way `grid auto-fill` does. */
+.grid-3 { display: flex; flex-wrap: wrap; gap: 16px; }
+.grid-3 > * { flex: 1 1 260px; min-width: 0; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 
 /* asymmetric split used by profile/approve/tracking/reaction/history */
@@ -336,12 +339,10 @@ button {
 .split-even { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 
 @media (max-width: 1024px) {
-  .grid-3 { grid-template-columns: repeat(2, 1fr); }
   .grid-4 { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 720px) {
   .grid-2,
-  .grid-3,
   .split,
   .split-even { grid-template-columns: 1fr; }
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
@@ -363,11 +364,17 @@ button {
   outline-offset: 2px;
 }
 
-/* Discover results grid: hero (spans 2 rows) + 2×2 small cards. */
+/* Discover results grid: hero (spans 2 rows) + small result cards, one
+   column wider at each step up so more results show on bigger screens. */
 .discover-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr 1fr;
   gap: 14px;
+}
+@media (min-width: 1600px) {
+  .discover-grid {
+    grid-template-columns: 1.2fr 1fr 1fr 1fr;
+  }
 }
 @media (max-width: 1024px) {
   .discover-grid {
@@ -392,13 +399,6 @@ button {
   .pick-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
-  }
-}
-
-/* The AI-panel close button only exists when the panel is a drawer (<1200px). */
-@media (min-width: 1201px) {
-  .panel-close {
-    display: none !important;
   }
 }
 
