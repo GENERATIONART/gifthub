@@ -1,8 +1,15 @@
 import { useNavigate } from "react-router-dom";
-import { currentUser, setupSteps } from "../../data/app";
+import { currentUser as seedCurrentUser, setupSteps } from "../../data/app";
+import { api, type CurrentUser } from "../../lib/api";
+import { useLive } from "../../lib/useLive";
 
 export function Empty() {
   const navigate = useNavigate();
+  const currentUser = useLive<CurrentUser>(() => api.me(), {
+    id: "", name: seedCurrentUser.name, first_name: seedCurrentUser.first,
+    initials: seedCurrentUser.initials, plan: seedCurrentUser.plan, jewel: "",
+  });
+  const first = currentUser.first_name || currentUser.name.split(" ")[0];
 
   return (
     <div className="screen screen-mid" style={{ paddingTop: 64, animation: "fadeUp .5s ease both" }}>
@@ -23,7 +30,7 @@ export function Empty() {
         f
       </div>
       <h1 className="hero hero-lg" style={{ margin: "0 0 12px" }}>
-        Let's begin, {currentUser.first}.<br />
+        Let's begin, {first}.<br />
         Who do you <i>gift</i> most?
       </h1>
       <p style={{ margin: "0 0 36px", font: "400 16px/1.6 var(--f-ui)", color: "var(--t-muted)", maxWidth: "52ch" }}>

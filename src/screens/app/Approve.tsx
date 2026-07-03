@@ -1,40 +1,96 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { approveLogistics, approveAssure } from "../../data/app";
+import { api, type ProjectGift } from "../../lib/api";
+import { isLive } from "../../lib/supabase";
+
+interface ApproveState {
+  personId?: string;
+  occasionId?: string | null;
+  personName?: string;
+  gift?: ProjectGift;
+}
 
 export function Approve() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = (location.state as ApproveState | null) ?? {};
+  const { personId, occasionId, personName = "" } = state;
+  const gift = state.gift;
+  const live = isLive && personId && gift?.id;
+
   const [approved, setApproved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!approved) return;
+    if (!approved || live) return;
+    // Offline/seed mode: no real order to place, just carry the demo forward.
     const t = setTimeout(() => navigate("/app/tracking"), 950);
     return () => clearTimeout(t);
-  }, [approved, navigate]);
+  }, [approved, live, navigate]);
+
+  if (!gift) {
+    return (
+      <div className="screen">
+        <div className="eyebrow-accent">Approve</div>
+        <h1 className="hero" style={{ margin: "13px 0 8px" }}>
+          No gift <i>selected</i> yet.
+        </h1>
+        <p className="lede" style={{ margin: "0 0 24px", maxWidth: "54ch" }}>
+          Pick something in Studio first, then come back here to approve it.
+        </p>
+        <button
+          onClick={() => navigate("/app/studio")}
+          className="focusring"
+          style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid rgba(220,226,230,.18)", background: "transparent", color: "var(--t-body)", font: "500 13px/1 var(--f-ui)", cursor: "pointer" }}
+        >
+          Go to Studio
+        </button>
+      </div>
+    );
+  }
+
+  const handleApprove = () => {
+    if (approved) return;
+    setApproved(true);
+    setError(null);
+    if (!live) return;
+    api
+      .approveProject({ person_id: personId!, gift_id: gift.id, occasion_id: occasionId })
+      .then((project) => {
+        setTimeout(() => navigate("/app/tracking", { state: { project, personId, personName } }), 950);
+      })
+      .catch(() => {
+        setApproved(false);
+        setError("Couldn't place the order — try again.");
+      });
+  };
 
   return (
     <div className="screen">
-      <div className="eyebrow-accent">Ready to send · Sarah</div>
+      <div className="eyebrow-accent">{personName ? `Ready to send · ${personName}` : "Ready to send"}</div>
       <h1 className="hero" style={{ margin: "13px 0 8px" }}>
         Approve once. I'll <i>handle</i> the rest.
       </h1>
       <p className="lede" style={{ margin: "0 0 30px", maxWidth: "54ch" }}>
         You're committing to this one purchase — nothing more. I'll buy it, pair the card, and have it
-        at her door before the 14th.
+        at their door in time.
       </p>
 
       <div className="split">
         {/* commitment */}
         <div style={{ borderRadius: 20, overflow: "hidden", background: "var(--bg-card)", border: "var(--line)" }}>
-          <CommitRow well="STONEWARE PLANTER" title="Hand-thrown planter set" sub="Clay & Kiln Studio · ships from Portland" price="$68" />
-          <CommitRow well="DOG CARD" title="Dog-themed card" sub="Signed from you, Jake & Biscuit 🐾" price="$6" border />
+          <CommitRow well={gift.img ?? ""} title={gift.name} sub={gift.why ?? ""} price={gift.price} />
+          <CommitRow well="CARD" title="Card" sub={`Signed from you, for ${personName}`} price="$6" border />
           <div style={{ display: "flex", gap: 10, padding: "16px 18px", borderTop: "var(--line-subtle)", background: "rgba(220,226,230,.03)", flexWrap: "wrap" }}>
             {approveLogistics.map((l) => (
               <div key={l.label} style={{ flex: 1, minWidth: 90 }}>
                 <div style={{ font: "500 9px/1 var(--f-ui)", letterSpacing: ".1em", textTransform: "uppercase", color: "var(--t-faint)" }}>
                   {l.label}
                 </div>
-                <div style={{ font: "500 13px/1.2 var(--f-ui)", color: "var(--t-body)", marginTop: 6 }}>{l.value}</div>
+                <div style={{ font: "500 13px/1.2 var(--f-ui)", color: "var(--t-body)", marginTop: 6 }}>
+                  {l.label === "Ship to" ? `${personName} · home` : l.value}
+                </div>
               </div>
             ))}
           </div>
@@ -64,7 +120,7 @@ export function Approve() {
                 <div style={{ font: "500 8.5px/1 var(--f-ui)", letterSpacing: ".1em", textTransform: "uppercase", color: "var(--t-faint)" }}>
                   Hard cap
                 </div>
-                <div style={{ font: "400 18px/1 var(--f-display)", color: "var(--t-primary)", marginTop: 6 }}>$74.00</div>
+                <div style={{ font: "400 18px/1 var(--f-display)", color: "var(--t-primary)", marginTop: 6 }}>{gift.price}</div>
               </div>
               <span style={{ font: "400 11px/1.4 var(--f-ui)", color: "#888e95", textAlign: "right", maxWidth: "18ch" }}>
                 Can't be charged a cent over. Locks after this order.
@@ -82,7 +138,7 @@ export function Approve() {
           </div>
 
           <button
-            onClick={() => !approved && setApproved(true)}
+            onClick={handleApprove}
             className="focusring"
             style={{
               marginTop: 14,
@@ -98,8 +154,11 @@ export function Approve() {
               color: approved ? "#7fc3a0" : "#15171c",
             }}
           >
-            {approved ? "✓ Approved — I'm on it" : "Approve $74 · send to Sarah"}
+            {approved ? "✓ Approved — I'm on it" : `Approve ${gift.price} · send to ${personName}`}
           </button>
+          {error && (
+            <div style={{ textAlign: "center", font: "400 12px/1 var(--f-ui)", color: "#d99a9a", marginTop: 10 }}>{error}</div>
+          )}
           <div style={{ textAlign: "center", font: "400 11.5px/1 var(--f-ui)", color: "var(--t-faintest)", marginTop: 12 }}>
             {approved ? "Ordered · taking you to tracking…" : "You approve the commitment — not the busywork"}
           </div>

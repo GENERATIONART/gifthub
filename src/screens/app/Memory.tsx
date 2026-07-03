@@ -1,7 +1,61 @@
 import { Avatar, Eyebrow } from "../../components/ui";
-import { histStats, ledger, histInsights, avatarMap } from "../../data/app";
+import { api, type LedgerRow, type MemorySummary } from "../../lib/api";
+import { useLive } from "../../lib/useLive";
+
+interface LedgerYear {
+  year: string;
+  items: {
+    date: string;
+    who: string;
+    gift: string;
+    occ: string;
+    price: string;
+    react: "loved" | "liked";
+  }[];
+}
+
+// No hardcoded per-person palette — real people's names aren't known ahead of
+// time, so derive a stable color from the name itself instead.
+const _AVATAR_PALETTE: [string, string][] = [
+  ["#2a2f37", "var(--g)"],
+  ["#2e2a37", "#b79cf0"],
+  ["#26312b", "#7fc3a0"],
+  ["#262d35", "#8ba6c4"],
+  ["#37302a", "#d6a98a"],
+];
+function avatarFor(name: string): [string, [string, string]] {
+  if (!name) return ["·", _AVATAR_PALETTE[0]];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return [name[0].toUpperCase(), _AVATAR_PALETTE[Math.abs(hash) % _AVATAR_PALETTE.length]];
+}
+
+/** Fold the flat gift-history feed into the year-grouped ledger shape. */
+function groupLedger(rows: LedgerRow[]): LedgerYear[] {
+  const order: string[] = [];
+  const map = new Map<string, LedgerYear["items"]>();
+  for (const r of rows) {
+    const d = r.given_on ? new Date(r.given_on) : null;
+    const year = d ? String(d.getFullYear()) : "—";
+    if (!map.has(year)) {
+      map.set(year, []);
+      order.push(year);
+    }
+    map.get(year)!.push({
+      date: d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "",
+      who: r.who ?? "",
+      gift: r.gift,
+      occ: r.occ ?? "",
+      price: r.price_cents != null ? `$${(r.price_cents / 100).toLocaleString()}` : "",
+      react: (r.react ?? "liked") as "loved" | "liked",
+    });
+  }
+  return order.map((year) => ({ year, items: map.get(year)! }));
+}
 
 export function Memory() {
+  const summary = useLive<MemorySummary>(() => api.memorySummary(), { stats: [], insights: [] });
+  const years = useLive<LedgerYear[]>(() => api.ledger().then(groupLedger), []);
   return (
     <div className="screen">
       <div className="eyebrow-accent">Gift memory</div>
@@ -14,7 +68,7 @@ export function Memory() {
       </p>
 
       <div style={{ display: "flex", gap: 12, margin: "26px 0 32px", flexWrap: "wrap" }}>
-        {histStats.map((s) => (
+        {summary.stats.map((s) => (
           <div key={s.label} style={{ flex: 1, minWidth: 140, padding: "18px 20px", borderRadius: 16, background: "var(--bg-card)", border: "var(--line-subtle)" }}>
             <div style={{ font: "400 30px/1 var(--f-display)", color: "var(--t-primary)" }}>{s.value}</div>
             <div style={{ font: "500 10.5px/1.3 var(--f-ui)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--t-faint)", marginTop: 8 }}>
@@ -24,14 +78,20 @@ export function Memory() {
         ))}
       </div>
 
+      {years.length === 0 && (
+        <p style={{ font: "400 13.5px/1.5 var(--f-ui)", color: "var(--t-faint)" }}>
+          Nothing given yet — every gift you approve will show up here, so I never repeat myself.
+        </p>
+      )}
+
       <div className="split" style={{ gridTemplateColumns: "1.4fr .6fr" }}>
         <div>
-          {ledger.map((yr) => (
+          {years.map((yr) => (
             <div key={yr.year} style={{ marginBottom: 26 }}>
               <div style={{ font: "400 15px/1 var(--f-display)", color: "var(--g)", marginBottom: 8 }}>{yr.year}</div>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {yr.items.map((it, i) => {
-                  const [initial, av] = avatarMap[it.who] ?? ["·", ["#2a2f37", "var(--g)"]];
+                  const [initial, av] = avatarFor(it.who);
                   const loved = it.react === "loved";
                   return (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 2px", borderBottom: "var(--line-faint)" }}>
@@ -66,7 +126,7 @@ export function Memory() {
         <div>
           <Eyebrow style={{ marginBottom: 14 }}>What I've learned</Eyebrow>
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-            {histInsights.map((t, i) => (
+            {summary.insights.map((t, i) => (
               <div key={i} style={{ padding: "16px 17px", borderRadius: 14, border: "1px dashed rgba(220,226,230,.14)", display: "flex", gap: 11, alignItems: "flex-start" }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--g)", flex: "none", marginTop: 6 }} />
                 <span style={{ font: "500 13px/1.5 var(--f-display)", fontStyle: "italic", color: "var(--t-muted)" }}>{t}</span>

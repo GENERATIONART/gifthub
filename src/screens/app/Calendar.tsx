@@ -1,6 +1,15 @@
-import { calendarMonths } from "../../data/app";
+import type { CalMonth } from "../../data/app";
+import { api } from "../../lib/api";
+import { useLive } from "../../lib/useLive";
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const emptyYear = (): CalMonth[] => {
+  const nowIdx = new Date().getMonth();
+  return MONTH_NAMES.map((m, i) => ({ m, occ: [], now: i === nowIdx }));
+};
 
 export function Calendar() {
+  const months = useLive(() => api.calendar(), emptyYear());
   return (
     <div className="screen">
       <div className="eyebrow-accent">2026 · at a glance</div>
@@ -8,12 +17,12 @@ export function Calendar() {
         Every moment that <i>matters</i>, mapped.
       </h1>
       <p className="lede">
-        Fourteen dates across eight people. I watch all of them quietly — you only ever see the two or
-        three that need you soon.
+        Every birthday and anniversary you've told me about. I watch all of them quietly — you only ever
+        see the two or three that need you soon.
       </p>
 
       <div className="grid-4" style={{ marginTop: 30 }}>
-        {calendarMonths.map((mo, mi) => (
+        {months.map((mo, mi) => (
           <div
             key={mo.m}
             style={{

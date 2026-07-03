@@ -1,27 +1,66 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Eyebrow } from "../../components/ui";
-import { trackSteps, trackConcierge } from "../../data/app";
+import { trackConcierge } from "../../data/app";
+import type { ProjectDetail } from "../../lib/api";
+
+interface TrackingState {
+  project?: ProjectDetail;
+  personId?: string;
+  personName?: string;
+}
 
 export function Tracking() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = (location.state as TrackingState | null) ?? {};
+  const { project, personId, personName } = state;
+
+  if (!project) {
+    return (
+      <div className="screen">
+        <div className="eyebrow-accent">Tracking</div>
+        <h1 className="hero" style={{ margin: "13px 0 8px" }}>
+          Nothing in <i>transit</i> right now.
+        </h1>
+        <p className="lede" style={{ margin: "0 0 24px", maxWidth: "58ch" }}>
+          Once you approve a gift, I'll track it here from order to doorstep.
+        </p>
+        <button
+          onClick={() => navigate("/app")}
+          className="focusring"
+          style={{ padding: "11px 18px", borderRadius: 11, border: "1px solid rgba(220,226,230,.18)", background: "transparent", color: "var(--t-body)", font: "500 13px/1 var(--f-ui)", cursor: "pointer" }}
+        >
+          Back to Home
+        </button>
+      </div>
+    );
+  }
+
+  const steps = project.track;
+  const gift = project.gift;
+  const giftLabel = gift ? gift.name : "";
+  const giftDetail = `For ${project.person.name ?? personName ?? ""}`;
+  const giftPrice = gift?.price ?? "";
+  const giftWell = gift?.img ?? "";
 
   return (
     <div className="screen">
-      <div className="eyebrow-accent">On track · arrives in 3 days</div>
+      <div className="eyebrow-accent">On track</div>
       <h1 className="hero" style={{ margin: "13px 0 8px" }}>
-        It's handled. Arriving <i>Saturday</i>, two days early.
+        It's handled. Arriving <i>soon</i>.
       </h1>
       <p className="lede" style={{ margin: "0 0 32px", maxWidth: "58ch" }}>
         Nothing for you to do. I'm watching the shipment — if it slips, I'll reroute or replace it
-        before her birthday, and tell you only if I need a decision.
+        before the occasion, and tell you only if I need a decision.
       </p>
 
       <div className="split-even">
         {/* timeline */}
         <div style={{ padding: "22px 22px 8px", borderRadius: 20, background: "var(--bg-card)", border: "var(--line)" }}>
-          {trackSteps.map((s, i) => {
+          {steps.map((s, i) => {
             const done = s.st === "done";
             const act = s.st === "active";
+            const last = i === steps.length - 1;
             return (
               <div key={i} style={{ display: "flex", gap: 15 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "none" }}>
@@ -44,7 +83,7 @@ export function Tracking() {
                   >
                     {done ? "✓" : ""}
                   </span>
-                  {!s.last && <span style={{ width: 2, flex: 1, minHeight: 22, background: done ? "var(--g)" : "#2a2f37", margin: "3px 0" }} />}
+                  {!last && <span style={{ width: 2, flex: 1, minHeight: 22, background: done ? "var(--g)" : "#2a2f37", margin: "3px 0" }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0, paddingBottom: 20 }}>
                   <div style={{ font: "500 14px/1.15 var(--f-ui)", color: s.st === "future" ? "#888e95" : "var(--t-primary)" }}>{s.title}</div>
@@ -75,13 +114,13 @@ export function Tracking() {
                 padding: 5,
               }}
             >
-              PLANTER + CARD
+              {giftWell}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ font: "500 14px/1.15 var(--f-ui)", color: "var(--t-primary)" }}>Planter set + dog card</div>
-              <div style={{ font: "400 11.5px/1.3 var(--f-ui)", color: "#888e95", marginTop: 3 }}>Signed from you, Jake & Biscuit 🐾</div>
+              <div style={{ font: "500 14px/1.15 var(--f-ui)", color: "var(--t-primary)" }}>{giftLabel}</div>
+              <div style={{ font: "400 11.5px/1.3 var(--f-ui)", color: "#888e95", marginTop: 3 }}>{giftDetail}</div>
             </div>
-            <span style={{ font: "500 12px/1 var(--f-display)", color: "var(--g)" }}>$74</span>
+            <span style={{ font: "500 12px/1 var(--f-display)", color: "var(--g)" }}>{giftPrice}</span>
           </div>
 
           <Eyebrow style={{ margin: "24px 0 12px" }}>If anything's off</Eyebrow>
@@ -105,7 +144,11 @@ export function Tracking() {
           </div>
 
           <div
-            onClick={() => navigate("/app/reaction")}
+            onClick={() =>
+              navigate("/app/reaction", {
+                state: { projectId: project?.id, personId: personId ?? project?.person.id, personName: project?.person.name ?? personName, gift },
+              })
+            }
             role="button"
             tabIndex={0}
             className="focusring"

@@ -1,17 +1,78 @@
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ImgWell } from "../../components/ui";
-import { picks } from "../../data/app";
+import { api, type ScoredGift } from "../../lib/api";
+import { isLive } from "../../lib/supabase";
+
+interface StudioState {
+  personId?: string;
+  occasionId?: string | null;
+  personName?: string;
+}
+
+interface Pick {
+  id?: string;
+  name: string;
+  price: string;
+  img: string;
+  why: string;
+  top?: boolean;
+}
+
+const NEUTRAL = { feel: 0, spend: 0, form: 0, risk: 0 };
 
 export function Studio() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = (location.state as StudioState | null) ?? {};
+
+  const [personId, setPersonId] = useState<string | null>(state.personId ?? null);
+  const [occasionId, setOccasionId] = useState<string | null | undefined>(state.occasionId);
+  const [personName, setPersonName] = useState<string>(state.personName ?? "");
+  const [live, setLive] = useState<ScoredGift[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // No person passed in (e.g. direct nav) — default to whoever needs a decision first.
+  useEffect(() => {
+    if (!isLive || personId) return;
+    api
+      .home()
+      .then((h) => {
+        const first = h.needs_you[0];
+        if (first?.person_id) {
+          setPersonId(first.person_id);
+          setOccasionId(first.occasion_id);
+          setPersonName(first.who);
+        }
+      })
+      .catch(() => {});
+  }, [personId]);
+
+  useEffect(() => {
+    if (!isLive || !personId) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .refine(personId, NEUTRAL, { limit: 6, rerank: false })
+      .then((r) => !cancelled && setLive(r))
+      .catch(() => !cancelled && setLive(null))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [personId]);
+
+  const picks: Pick[] = live
+    ? live.map((g, i) => ({ id: g.id, name: g.name, price: g.price, img: g.img ?? "", why: g.why ?? "", top: i === 0 }))
+    : [];
 
   return (
     <div className="screen">
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 6, flexWrap: "wrap" }}>
         <div>
-          <div className="eyebrow-accent">Sarah · her birthday · 12 days</div>
+          {personName && <div className="eyebrow-accent">{personName}</div>}
           <h1 className="hero" style={{ margin: "13px 0 0" }}>
-            Ten gifts, <i>chosen</i> for her.
+            Gifts, <i>chosen</i> for them.
           </h1>
         </div>
         <button
@@ -31,19 +92,30 @@ export function Studio() {
         </button>
       </div>
       <p className="lede" style={{ margin: "14px 0 30px", maxWidth: "52ch" }}>
-        I weighted toward things she can keep and touch — ceramics, her garden, and Biscuit. Each comes
-        with why I picked it.
+        Weighted toward what they actually love, not just their category. Each comes with why I picked it.
       </p>
+
+      {picks.length === 0 && (
+        <p style={{ font: "400 13.5px/1.5 var(--f-ui)", color: "var(--t-faint)" }}>
+          {loading ? "Curating…" : "No picks yet — add someone with a few loves and I'll build a shortlist."}
+        </p>
+      )}
 
       <div className="grid-3">
         {picks.map((g, i) => (
           <div
-            key={g.id}
+            key={g.id ?? g.name}
             data-pick
             className="pick-card focusring"
             role="button"
             tabIndex={0}
-            onClick={() => navigate("/app/approve")}
+            onClick={() =>
+              navigate("/app/approve", {
+                // Only carry a real gift id through when it came from the live API —
+                // seed fallback picks (shown while live data is still loading) aren't orderable.
+                state: personId && live ? { personId, occasionId, personName, gift: g } : undefined,
+              })
+            }
             style={{
               cursor: "pointer",
               overflow: "hidden",

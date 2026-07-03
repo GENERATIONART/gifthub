@@ -1,24 +1,46 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImgWell } from "../../components/ui";
-import { refineDials, refinePool, scoreGift, type Axes } from "../../data/app";
+import { refineDials, type Axes } from "../../data/app";
+import { api, type ScoredGift } from "../../lib/api";
+import { isLive } from "../../lib/supabase";
 
 export function Refine() {
   const navigate = useNavigate();
   const [dials, setDials] = useState<Axes>({ feel: 1, spend: 1, form: 0, risk: 0 });
+  const [personId, setPersonId] = useState<string | null>(null);
+  const [results, setResults] = useState<ScoredGift[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const setAxis = (axis: keyof Axes, value: number) => setDials((d) => ({ ...d, [axis]: value }));
 
-  const scored = useMemo(
-    () => refinePool.map((p) => ({ ...p, s: scoreGift(p, dials) })).sort((a, b) => b.s - a.s),
-    [dials],
-  );
-  const top = scored[0];
-  const rest = scored.slice(1, 5);
+  useEffect(() => {
+    if (!isLive) return;
+    api.listPeople().then((p) => setPersonId(p[0]?.id ?? null)).catch(() => setPersonId(null));
+  }, []);
+
+  useEffect(() => {
+    if (!isLive || !personId) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .refine(personId, dials)
+      .then((r) => !cancelled && setResults(r))
+      .catch(() => !cancelled && setResults([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [personId, dials]);
+
+  const top = results[0];
+  const rest = results.slice(1, 5);
 
   const active = refineDials.filter((def) => dials[def.axis] !== 0).map((def) => def.names[dials[def.axis] + 1].toLowerCase());
   const userSaid = active.length ? "Make it more " + active.slice(0, 2).join(" and ") : "Show me other directions";
-  const aiReply = `Done — I re-ranked all 40 around that. ${top.name} rose to the top because it's ${top.match.replace(" · ", " and ")}.`;
+  const aiReply = top
+    ? `Done — I re-ranked around that. ${top.name} rose to the top because it's ${(top.match ?? "").replace(" · ", " and ")}.`
+    : "";
 
   return (
     <div className="screen">
@@ -86,6 +108,11 @@ export function Refine() {
       </div>
 
       {/* results */}
+      {!top ? (
+        <p style={{ marginTop: 20, font: "400 13.5px/1.5 var(--f-ui)", color: "var(--t-faint)" }}>
+          {loading ? "Re-ranking…" : "No gifts to show yet — add a recipient with a few loves to get picks here."}
+        </p>
+      ) : (
       <div className="split-even">
         {/* top pick */}
         <div
@@ -229,6 +256,7 @@ export function Refine() {
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type { Tone } from "../data/app";
 
 /* Shared primitives used across screens. */
@@ -56,18 +56,24 @@ export function StatusPill({ tone, children }: { tone: Tone; children: ReactNode
   return <span style={{ ...pillBase, ...toneMap[tone] }}>{children}</span>;
 }
 
-/** Placeholder image well (until wired to real product imagery). */
+/** Image well — renders a real product photo when `label` is an image URL
+    (from the gift-research pipeline's og:image extraction), falling back to
+    the bracket-text placeholder style for seed data and any image that fails
+    to load. */
 export function ImgWell({
   label,
   height,
   style,
   children,
 }: {
-  label: string;
+  label?: string | null;
   height: number | string;
   style?: CSSProperties;
   children?: ReactNode;
 }) {
+  const looksLikeImage = !!label && /^https?:\/\//.test(label);
+  const [failed, setFailed] = useState(false);
+
   return (
     <div
       style={{
@@ -82,10 +88,21 @@ export function ImgWell({
         letterSpacing: ".08em",
         textAlign: "center",
         padding: 8,
+        overflow: "hidden",
         ...style,
       }}
     >
-      {label}
+      {looksLikeImage && !failed ? (
+        <img
+          src={label!}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      ) : (
+        label
+      )}
       {children}
     </div>
   );

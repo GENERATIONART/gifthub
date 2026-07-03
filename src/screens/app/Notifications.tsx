@@ -1,7 +1,24 @@
 import { Eyebrow } from "../../components/ui";
-import { notifGroups } from "../../data/app";
+import { api, type NotifFlat } from "../../lib/api";
+import { useLive } from "../../lib/useLive";
+
+/** Group the flat notification feed by its label, preserving arrival order. */
+function groupNotifs(rows: NotifFlat[]): { label: string; items: NotifFlat[] }[] {
+  const order: string[] = [];
+  const map = new Map<string, NotifFlat[]>();
+  for (const n of rows) {
+    const label = n.group_label ?? "Recent";
+    if (!map.has(label)) {
+      map.set(label, []);
+      order.push(label);
+    }
+    map.get(label)!.push(n);
+  }
+  return order.map((label) => ({ label, items: map.get(label)! }));
+}
 
 export function Notifications() {
+  const groups = useLive<{ label: string; items: NotifFlat[] }[]>(() => api.notifications().then(groupNotifs), []);
   let idx = 0;
   return (
     <div className="screen screen-mid">
@@ -14,7 +31,13 @@ export function Notifications() {
         I just handle.
       </p>
 
-      {notifGroups.map((grp) => (
+      {groups.length === 0 && (
+        <p style={{ marginTop: 28, font: "400 13.5px/1.5 var(--f-ui)", color: "var(--t-faint)" }}>
+          Nothing yet — I'll surface anything worth knowing about right here.
+        </p>
+      )}
+
+      {groups.map((grp) => (
         <div key={grp.label} style={{ marginTop: 26 }}>
           <Eyebrow style={{ marginBottom: 14 }}>{grp.label}</Eyebrow>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

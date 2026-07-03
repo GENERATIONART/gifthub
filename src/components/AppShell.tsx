@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { navItems, people, currentUser, type NavItem } from "../data/app";
+import { navItems, currentUser as seedCurrentUser, type NavItem } from "../data/app";
 import { Avatar } from "./ui";
 import { AIPanel } from "./AIPanel";
+import { api, type CurrentUser, type PersonSummary } from "../lib/api";
+import { useLive } from "../lib/useLive";
+import { isLive } from "../lib/supabase";
+import { AddPersonModal } from "./AddPersonModal";
 
 /* Responsive three-pane app shell.
    ≥1200px: nav · content · AI panel.
@@ -36,9 +40,18 @@ function isActive(item: NavItem, pathname: string): boolean {
   return pathname === item.to || (item.to !== "/app" && pathname.startsWith(item.to + "/"));
 }
 
+const DEFAULT_AV: [string, string] = ["#2a2f37", "var(--g)"];
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [peopleVersion, setPeopleVersion] = useState(0);
+  const people = useLive<PersonSummary[]>(() => api.listPeople(), [], [peopleVersion]);
+  const currentUser = useLive<CurrentUser>(() => api.me(), {
+    id: "", name: seedCurrentUser.name, first_name: seedCurrentUser.first,
+    initials: seedCurrentUser.initials, plan: seedCurrentUser.plan, jewel: "",
+  });
+  const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
@@ -164,22 +177,60 @@ export function AppShell() {
 
       <div
         style={{
-          font: "600 9.5px/1 var(--f-ui)",
-          letterSpacing: ".18em",
-          textTransform: "uppercase",
-          color: "var(--t-dim)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           padding: "24px 12px 12px",
         }}
       >
-        Your people
+        <span
+          style={{
+            font: "600 9.5px/1 var(--f-ui)",
+            letterSpacing: ".18em",
+            textTransform: "uppercase",
+            color: "var(--t-dim)",
+          }}
+        >
+          Your people
+        </span>
+        {isLive && (
+          <button
+            onClick={() => setAddPersonOpen(true)}
+            aria-label="Add someone to gift"
+            className="focusring"
+            style={{
+              width: 20,
+              height: 20,
+              flex: "none",
+              borderRadius: "50%",
+              border: "1px solid rgba(220,226,230,.2)",
+              background: "transparent",
+              color: "var(--t-faint)",
+              fontSize: 12,
+              lineHeight: 1,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ＋
+          </button>
+        )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, overflowY: "auto", flex: 1, minHeight: 0 }}>
+        {people.length === 0 && (
+          <div style={{ padding: "9px 11px", font: "400 12px/1.4 var(--f-ui)", color: "var(--t-faintest)" }}>
+            No one yet — add someone to get started.
+          </div>
+        )}
         {people.map((p) => {
-          const active = location.pathname === `/app/profile/${p.key}`;
+          const active = location.pathname === `/app/profile/${p.id}`;
+          const [bg, fg] = p.av ?? DEFAULT_AV;
           return (
             <Link
-              key={p.key}
-              to={`/app/profile/${p.key}`}
+              key={p.id}
+              to={`/app/profile/${p.id}`}
               className="focusring"
               style={{
                 display: "flex",
@@ -191,7 +242,7 @@ export function AppShell() {
                 background: active ? "rgba(220,226,230,.07)" : "transparent",
               }}
             >
-              <Avatar initial={p.initial} bg={p.av[0]} fg={p.av[1]} size={32} />
+              <Avatar initial={p.initial ?? p.name[0]} bg={bg} fg={fg} size={32} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
@@ -206,7 +257,7 @@ export function AppShell() {
                 </div>
                 <div style={{ font: "400 11px/1 var(--f-ui)", color: "var(--t-faintest)", marginTop: 3 }}>{p.next}</div>
               </div>
-              {p.flag && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--g)", flex: "none" }} />}
+              {p.flagged && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--g)", flex: "none" }} />}
             </Link>
           );
         })}
@@ -222,7 +273,7 @@ export function AppShell() {
           borderTop: "var(--line-faint)",
         }}
       >
-        <Avatar initial={currentUser.initials} bg="#2a2f37" fg="var(--t-secondary)" size={30} />
+        <Avatar initial={currentUser.initials ?? currentUser.name[0]} bg="#2a2f37" fg="var(--t-secondary)" size={30} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ font: "500 12.5px/1 var(--f-ui)", color: "var(--t-body)" }}>{currentUser.name}</div>
           <div style={{ font: "400 10.5px/1 var(--f-ui)", color: "var(--t-faintest)", marginTop: 3 }}>{currentUser.plan}</div>
@@ -313,6 +364,17 @@ export function AppShell() {
           onClick={() => {
             setNavOpen(false);
             setPanelOpen(false);
+          }}
+        />
+      )}
+
+      {addPersonOpen && (
+        <AddPersonModal
+          onClose={() => setAddPersonOpen(false)}
+          onCreated={(person) => {
+            setAddPersonOpen(false);
+            setPeopleVersion((v) => v + 1);
+            navigate(`/app/profile/${person.id}`);
           }}
         />
       )}

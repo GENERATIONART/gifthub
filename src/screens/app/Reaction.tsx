@@ -1,22 +1,53 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Eyebrow } from "../../components/ui";
 import { reactionDefs, reactionLearned, reactionTags, type ReactionKey } from "../../data/app";
+import { api, type ProjectGift } from "../../lib/api";
+import { isLive } from "../../lib/supabase";
+
+interface ReactionState {
+  projectId?: string;
+  personId?: string;
+  personName?: string;
+  gift?: ProjectGift;
+}
 
 export function Reaction() {
+  const location = useLocation();
+  const state = (location.state as ReactionState | null) ?? {};
+  const { projectId, personId, personName = "" } = state;
+  const gift = state.gift;
+  const live = isLive && personId;
+
   const [reaction, setReaction] = useState<ReactionKey | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  if (!gift) {
+    return (
+      <div className="screen">
+        <div className="eyebrow-accent">Reaction</div>
+        <h1 className="hero" style={{ margin: "13px 0 8px" }}>
+          Nothing to <i>react</i> to yet.
+        </h1>
+        <p className="lede" style={{ margin: "0 0 24px", maxWidth: "54ch" }}>
+          Once a gift's been delivered, come back here and tell me how it landed.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="screen" style={{ animation: "fadeUp .4s ease both" }}>
       <div style={{ font: "500 11px/1 var(--f-ui)", letterSpacing: ".2em", textTransform: "uppercase", color: "#7fc3a0", marginBottom: 13 }}>
-        Delivered Saturday · she has it
+        Delivered{personName ? ` · ${personName} has it` : ""}
       </div>
       <h1 className="hero hero-lg" style={{ margin: "0 0 8px" }}>
         So — how did it <i>land</i>?
       </h1>
       <p className="lede" style={{ maxWidth: "54ch" }}>
         One tap is all I need. It's the single most useful thing you can tell me — it sharpens every
-        gift I choose for her after this.
+        gift I choose for them after this.
       </p>
 
       <div className="split" style={{ marginTop: 30 }}>
@@ -39,13 +70,13 @@ export function Reaction() {
                 padding: 5,
               }}
             >
-              STONEWARE SET
+              {gift.img ?? ""}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ font: "500 15px/1.15 var(--f-ui)", color: "var(--t-primary)" }}>Hand-thrown planter set</div>
-              <div style={{ font: "400 12px/1.3 var(--f-ui)", color: "#888e95", marginTop: 3 }}>Her ceramics & garden, in one</div>
+              <div style={{ font: "500 15px/1.15 var(--f-ui)", color: "var(--t-primary)" }}>{gift.name}</div>
+              <div style={{ font: "400 12px/1.3 var(--f-ui)", color: "#888e95", marginTop: 3 }}>{gift.why}</div>
             </div>
-            <span style={{ font: "500 13px/1 var(--f-display)", color: "var(--g)" }}>$74</span>
+            <span style={{ font: "500 13px/1 var(--f-display)", color: "var(--g)" }}>{gift.price}</span>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
@@ -116,8 +147,21 @@ export function Reaction() {
           </div>
 
           <button
-            onClick={() => reaction && setSaved(true)}
-            disabled={!reaction}
+            onClick={() => {
+              if (!reaction || saving) return;
+              if (!live) {
+                setSaved(true);
+                return;
+              }
+              setSaving(true);
+              api
+                .logReaction({ project_id: projectId, person_id: personId!, reaction })
+                .then(() => api.reindexPerson(personId!).catch(() => {}))
+                .then(() => setSaved(true))
+                .catch(() => setSaved(false))
+                .finally(() => setSaving(false));
+            }}
+            disabled={!reaction || saving}
             className="focusring"
             style={{
               marginTop: 20,
@@ -135,11 +179,11 @@ export function Reaction() {
                 : { background: "var(--surface-raised)", color: "var(--t-dim)", cursor: "default" }),
             }}
           >
-            {saved ? "✓ Saved to her memory" : "Save to Sarah's memory"}
+            {saved ? "✓ Saved to their memory" : saving ? "Saving…" : personName ? `Save to ${personName}'s memory` : "Save reaction"}
           </button>
           {saved && (
             <div style={{ marginTop: 12, textAlign: "center", font: "400 13px/1.4 var(--f-ui)", color: "#7fc3a0" }}>
-              ✓ Logged to Sarah's gift memory — I won't repeat it.
+              ✓ Logged{personName ? ` to ${personName}'s` : " to"} gift memory — I won't repeat it.
             </div>
           )}
         </div>
@@ -190,7 +234,7 @@ export function Reaction() {
           ) : (
             <div style={{ padding: "26px 22px", borderRadius: 18, border: "1px dashed rgba(220,226,230,.16)", textAlign: "center" }}>
               <div style={{ font: "400 15px/1.55 var(--f-display)", fontStyle: "italic", color: "var(--t-faint)" }}>
-                Pick a reaction and I'll show you exactly how it changes what I choose for her next.
+                Pick a reaction and I'll show you exactly how it changes what I choose next.
               </div>
             </div>
           )}

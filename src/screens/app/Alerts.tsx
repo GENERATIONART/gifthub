@@ -1,6 +1,9 @@
-import { alerts } from "../../data/app";
+import type { Alert } from "../../data/app";
+import { api } from "../../lib/api";
+import { useLive } from "../../lib/useLive";
 
 export function Alerts() {
+  const rows = useLive<Alert[]>(() => api.alerts(), []);
   return (
     <div className="screen">
       <div className="eyebrow-accent">When something's off</div>
@@ -12,8 +15,14 @@ export function Alerts() {
         it — you just pick.
       </p>
 
+      {rows.length === 0 && (
+        <p style={{ marginTop: 28, font: "400 13.5px/1.5 var(--f-ui)", color: "var(--t-faint)" }}>
+          Nothing needs your attention right now — I'll show up here the moment something does.
+        </p>
+      )}
+
       <div className="grid-2" style={{ marginTop: 28, alignItems: "start" }}>
-        {alerts.map((a, i) => {
+        {rows.map((a, i) => {
           const high = a.severity === "high";
           return (
             <div

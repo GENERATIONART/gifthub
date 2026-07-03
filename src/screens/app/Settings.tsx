@@ -1,13 +1,53 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Eyebrow } from "../../components/ui";
-import { settingsToggles, settingsAddresses } from "../../data/app";
+import { currentUser as seedCurrentUser, settingsToggles } from "../../data/app";
+import { api, type AddressRow, type CurrentUser, type SettingsValues } from "../../lib/api";
+import { useLive } from "../../lib/useLive";
 import { JEWEL_PRESETS } from "../../theme/theme";
 import { useTheme } from "../../theme/ThemeProvider";
 
+interface AddressDisplay {
+  name: string;
+  line: string;
+  initial: string;
+  verified: boolean;
+  av: [string, string];
+}
+
 export function Settings() {
   const { jewel, setJewel } = useTheme();
+  const me = useLive<CurrentUser>(() => api.me(), {
+    id: "", name: seedCurrentUser.name, first_name: seedCurrentUser.first,
+    initials: seedCurrentUser.initials, plan: seedCurrentUser.plan, jewel: "",
+  });
   const [toggles, setToggles] = useState<Record<string, boolean>>(
     () => Object.fromEntries(settingsToggles.map((t) => [t.key, t.def])),
+  );
+
+  // Seed toggle values from the backend when live; keys match settingsToggles.
+  const liveSettings = useLive<SettingsValues | null>(() => api.settings(), null);
+  useEffect(() => {
+    if (!liveSettings) return;
+    setToggles({
+      autoApprove: liveSettings.auto_approve,
+      priceWatch: liveSettings.price_watch,
+      cardSign: liveSettings.card_sign,
+      reroute: liveSettings.reroute,
+    });
+  }, [liveSettings]);
+
+  const addresses = useLive<AddressDisplay[]>(
+    () =>
+      api.addresses().then((rows: AddressRow[]) =>
+        rows.map((a) => ({
+          name: a.name,
+          line: a.line,
+          initial: a.initial ?? a.name[0],
+          verified: a.verified,
+          av: (a.av ?? ["#2a2f37", "var(--g)"]) as [string, string],
+        })),
+      ),
+    [],
   );
 
   return (
@@ -36,7 +76,7 @@ export function Settings() {
           <span>$400</span>
         </div>
         <p style={{ margin: "15px 0 0", font: "400 12.5px/1.5 var(--f-ui)", color: "#888e95" }}>
-          Per-person budgets override this — Sarah's birthday is set to $200, Jake's to $60.
+          Per-person budgets override this — set one from any person's profile.
         </p>
       </div>
 
@@ -83,8 +123,13 @@ export function Settings() {
         {/* address book */}
         <div>
           <Eyebrow style={{ marginBottom: 14 }}>Address book</Eyebrow>
+          {addresses.length === 0 && (
+            <p style={{ font: "400 12.5px/1.5 var(--f-ui)", color: "#888e95" }}>
+              No addresses yet — I'll ask for one the first time I need to ship something.
+            </p>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-            {settingsAddresses.map((a) => (
+            {addresses.map((a) => (
               <div key={a.name} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 16px", background: "var(--bg-card)", border: "var(--line-subtle)", borderRadius: 14 }}>
                 <Avatar initial={a.initial} bg={a.av[0]} fg={a.av[1]} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -113,7 +158,7 @@ export function Settings() {
             </div>
             <div style={{ font: "400 15px/1 var(--f-display)", letterSpacing: ".14em", color: "var(--t-body)" }}>•••• •••• •••• 4014</div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, font: "400 11px/1 var(--f-ui)", color: "#888e95" }}>
-              <span>David Mercer</span>
+              <span>{me.name || "—"}</span>
               <span>08 / 28</span>
             </div>
           </div>

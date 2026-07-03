@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useSession } from "../lib/session";
+import { isLive } from "../lib/supabase";
 
 /* Auth — passwordless magic-link, primary flow. States: signin | create | sent.
    Split layout (form left, brand panel right); brand hides on mobile. */
@@ -14,8 +16,46 @@ const promises = [
 
 export function Auth() {
   const navigate = useNavigate();
+  const { signIn, signInWithPassword } = useSession();
   const [mode, setMode] = useState<Mode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const isCreate = mode === "create";
+
+  const submit = async () => {
+    setError(null);
+    if (isCreate) {
+      navigate("/onboarding");
+      return;
+    }
+    if (isLive) {
+      if (!email.trim()) {
+        setError("Enter your email address.");
+        return;
+      }
+      setSending(true);
+      // If a password is supplied, sign in directly; otherwise send a magic link.
+      if (password.trim()) {
+        const { error: err } = await signInWithPassword(email.trim(), password);
+        setSending(false);
+        if (err) {
+          setError(err);
+          return;
+        }
+        navigate("/app");
+        return;
+      }
+      const { error: err } = await signIn(email.trim());
+      setSending(false);
+      if (err) {
+        setError(err);
+        return;
+      }
+    }
+    setMode("sent"); // seed mode / magic-link: show the confirmation state
+  };
 
   return (
     <div className="page duo" style={{ background: "var(--bg-app-alt)" }}>
@@ -50,18 +90,43 @@ export function Auth() {
 
               <FieldLabel>Email address</FieldLabel>
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 14, background: "var(--bg-card)", border: "1px solid var(--g)" }}>
-                <span style={{ font: "500 17px/1 var(--f-ui)", color: "var(--t-primary)" }}>
-                  david.mercer@gmail.com
-                  <span style={{ display: "inline-block", width: 2, height: 18, background: "var(--g)", marginLeft: 2, verticalAlign: -3, animation: "blink 1.1s step-end infinite" }} />
-                </span>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  placeholder="you@example.com"
+                  className="focusring"
+                  style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", font: "500 17px/1 var(--f-ui)", color: "var(--t-primary)" }}
+                />
               </div>
 
+              {/* Optional password — fill it in to sign in directly (else a magic link is sent). */}
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 14, background: "var(--bg-card)", border: "1px solid rgba(220,226,230,.14)" }}>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  placeholder="Password (optional — leave blank for a magic link)"
+                  className="focusring"
+                  style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", font: "500 15px/1 var(--f-ui)", color: "var(--t-primary)" }}
+                />
+              </div>
+
+              {error && (
+                <div style={{ marginTop: 10, font: "400 13px/1.4 var(--f-ui)", color: "#c98a8a" }}>{error}</div>
+              )}
+
               <button
-                onClick={() => (isCreate ? navigate("/onboarding") : setMode("sent"))}
+                onClick={submit}
+                disabled={sending}
                 className="focusring"
-                style={{ marginTop: 20, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 17, borderRadius: 13, background: "var(--g)", color: "#15171c", border: "none", font: "600 15px/1 var(--f-ui)", cursor: "pointer" }}
+                style={{ marginTop: 20, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 17, borderRadius: 13, background: "var(--g)", color: "#15171c", border: "none", font: "600 15px/1 var(--f-ui)", cursor: sending ? "default" : "pointer", opacity: sending ? 0.7 : 1 }}
               >
-                Email me a sign-in link <span style={{ fontSize: 15 }}>→</span>
+                {sending ? "Signing in…" : password.trim() ? "Sign in" : "Email me a sign-in link"} <span style={{ fontSize: 15 }}>→</span>
               </button>
               <div style={{ marginTop: 13, textAlign: "center", font: "400 13px/1.5 var(--f-ui)", color: "var(--t-faintest)" }}>
                 No password to remember — the link signs you in.
@@ -99,7 +164,7 @@ export function Auth() {
                 Check your <i style={{ fontStyle: "italic", color: "var(--g)" }}>inbox</i>.
               </h1>
               <p style={{ margin: "20px 0 30px", font: "400 16px/1.65 var(--f-ui)", color: "var(--t-muted)", maxWidth: "44ch" }}>
-                I sent a sign-in link to <span style={{ color: "var(--t-primary)" }}>david.mercer@gmail.com</span>. Tap it and
+                I sent a sign-in link to <span style={{ color: "var(--t-primary)" }}>{email || "david.mercer@gmail.com"}</span>. Tap it and
                 you're in — it's good for the next 15 minutes.
               </p>
               <div style={{ display: "flex", gap: 12, maxWidth: 400, flexWrap: "wrap" }}>
