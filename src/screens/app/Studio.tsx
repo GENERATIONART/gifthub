@@ -31,6 +31,10 @@ export function Studio() {
   const [personName, setPersonName] = useState<string>(state.personName ?? "");
   const [live, setLive] = useState<ScoredGift[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [more, setMore] = useState(true);
+
+  const PAGE = 9;
 
   // No person passed in (e.g. direct nav) — default to whoever needs a decision first.
   useEffect(() => {
@@ -52,15 +56,34 @@ export function Studio() {
     if (!isLive || !personId) return;
     let cancelled = false;
     setLoading(true);
+    setMore(true);
     api
-      .refine(personId, NEUTRAL, { limit: 6, rerank: false })
-      .then((r) => !cancelled && setLive(r))
+      .refine(personId, NEUTRAL, { limit: PAGE, rerank: false })
+      .then((r) => {
+        if (cancelled) return;
+        setLive(r);
+        setMore(r.length >= PAGE);
+      })
       .catch(() => !cancelled && setLive(null))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
   }, [personId]);
+
+  // Page deeper into the same ranking for this person.
+  const loadMore = () => {
+    if (!personId || loadingMore || !live) return;
+    setLoadingMore(true);
+    api
+      .refine(personId, NEUTRAL, { limit: PAGE, offset: live.length, rerank: false })
+      .then((r) => {
+        setLive((prev) => [...(prev ?? []), ...r]);
+        setMore(r.length >= PAGE);
+      })
+      .catch(() => setMore(false))
+      .finally(() => setLoadingMore(false));
+  };
 
   const picks: Pick[] = live
     ? live.map((g, i) => ({ id: g.id, name: g.name, price: g.price, img: g.img ?? "", why: g.why ?? "", top: i === 0 }))
@@ -156,6 +179,28 @@ export function Studio() {
           </div>
         ))}
       </div>
+
+      {picks.length > 0 && more && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="focusring"
+            style={{
+              font: "600 12.5px/1 var(--f-ui)",
+              color: "var(--t-primary)",
+              background: "transparent",
+              border: "1px solid var(--g)",
+              padding: "12px 24px",
+              borderRadius: 999,
+              cursor: loadingMore ? "default" : "pointer",
+              opacity: loadingMore ? 0.6 : 1,
+            }}
+          >
+            {loadingMore ? "Finding more…" : "Load more gifts"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

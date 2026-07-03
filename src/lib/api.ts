@@ -7,14 +7,15 @@ import type {
   Notif,
   RefineGift,
 } from "../data/app";
-import { API_URL, supabase } from "./supabase";
+import { API_URL, getSupabase } from "./supabase";
 
 /* Typed client for the Fondly API. Every call attaches the Supabase JWT.
    Screens should prefer these over importing seeded data from data/app.ts —
    the return shapes match those seeded types 1:1. */
 
 async function authHeader(): Promise<Record<string, string>> {
-  const token = (await supabase?.auth.getSession())?.data.session?.access_token;
+  const client = await getSupabase();
+  const token = (await client?.auth.getSession())?.data.session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -32,6 +33,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new Error(`${res.status} ${path}: ${detail}`);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+/* AppShell, Home, Settings, and Empty each independently ask "who is the
+   current user" on mount — same request every time. Cache the in-flight/
+   resolved promise per path so simultaneous or repeat callers within a
+   session share one round trip instead of firing one each. */
+const getCache = new Map<string, Promise<unknown>>();
+function cachedGet<T>(path: string): Promise<T> {
+  let p = getCache.get(path) as Promise<T> | undefined;
+  if (!p) {
+    p = request<T>(path);
+    p.catch(() => getCache.delete(path));
+    getCache.set(path, p);
+  }
+  return p;
 }
 
 // ── Response shapes (mirror app.ts types) ───────────────────────────────────
@@ -161,7 +177,7 @@ export interface CurrentUser {
 
 // ── Endpoints ───────────────────────────────────────────────────────────────
 export const api = {
-  me: () => request<CurrentUser>("/me"),
+  me: () => cachedGet<CurrentUser>("/me"),
 
   listPeople: () => request<PersonSummary[]>("/people"),
   getPerson: (id: string) => request<PersonDetail>(`/people/${id}`),
@@ -189,20 +205,25 @@ export const api = {
       { method: "POST", body: JSON.stringify(body) },
     ),
 
-  refine: (personId: string, dials: Axes, opts?: { limit?: number; rerank?: boolean }) =>
+  refine: (personId: string, dials: Axes, opts?: { limit?: number; offset?: number; rerank?: boolean }) =>
     request<ScoredGift[]>("/refine", {
       method: "POST",
       body: JSON.stringify({
         person_id: personId,
         dials,
         limit: opts?.limit ?? 7,
+        offset: opts?.offset ?? 0,
         rerank: opts?.rerank ?? true,
       }),
     }),
 
   listGifts: () => request<RefineGift[]>("/gifts"),
 
-  discover: (text: string) => request<DiscoverResult>("/discover", { method: "POST", body: JSON.stringify({ text }) }),
+  discover: (text: string, opts?: { limit?: number }) =>
+    request<DiscoverResult>("/discover", {
+      method: "POST",
+      body: JSON.stringify({ text, limit: opts?.limit ?? 8 }),
+    }),
 
   home: () => request<HomeData>("/home"),
   calendar: () => request<CalMonth[]>("/calendar"),

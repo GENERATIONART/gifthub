@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { isLive, supabase } from "./supabase";
+import { getSupabase, isLive } from "./supabase";
 
 /* Auth/session context backed by Supabase magic-link. In seed mode (no backend
    configured) it's inert: `session` stays null and the app uses local data. */
@@ -30,18 +30,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(isLive);
 
   useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
+    const clientPromise = getSupabase();
+    if (!clientPromise) return;
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    clientPromise.then((client) => {
+      if (cancelled) return;
+      client.auth.getSession().then(({ data }) => {
+        if (!cancelled) {
+          setSession(data.session);
+          setLoading(false);
+        }
+      });
+      const { data: sub } = client.auth.onAuthStateChange((_e, s) => !cancelled && setSession(s));
+      unsubscribe = () => sub.subscription.unsubscribe();
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   const signIn = useCallback(async (email: string) => {
-    if (!supabase) return { error: null };
-    const { error } = await supabase.auth.signInWithOtp({
+    const client = await getSupabase();
+    if (!client) return { error: null };
+    const { error } = await client.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/app` },
     });
@@ -49,13 +64,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithPassword = useCallback(async (email: string, password: string) => {
-    if (!supabase) return { error: null };
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const client = await getSupabase();
+    if (!client) return { error: null };
+    const { error } = await client.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase?.auth.signOut();
+    const client = await getSupabase();
+    await client?.auth.signOut();
   }, []);
 
   const value = useMemo(

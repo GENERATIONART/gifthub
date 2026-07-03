@@ -13,13 +13,15 @@ export function Discover() {
   const [results, setResults] = useState<ScoredGift[] | null>(null);
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shown, setShown] = useState(8);
 
   const submit = () => {
     if (!text.trim() || loading || !isLive) return;
     setLoading(true);
     setError(null);
+    setShown(8);
     api
-      .discover(text.trim())
+      .discover(text.trim(), { limit: 24 })
       .then((r) => {
         setParsed(r.parsed);
         setResults(r.results);
@@ -32,7 +34,8 @@ export function Discover() {
   const showingLive = parsed !== null && results !== null;
   const parsedItems: DiscoverParsedItem[] = showingLive ? parsed! : [];
   const top = showingLive ? results![0] : undefined;
-  const rest: ScoredGift[] = showingLive ? results!.slice(1) : [];
+  const rest: ScoredGift[] = showingLive ? results!.slice(1, shown) : [];
+  const canShowMore = showingLive && results!.length > shown;
 
   return (
     <div className="screen screen-narrow">
@@ -199,6 +202,26 @@ export function Discover() {
           </div>
         ))}
       </div>
+      )}
+
+      {canShowMore && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
+          <button
+            onClick={() => setShown((n) => n + 8)}
+            className="focusring"
+            style={{
+              font: "600 12.5px/1 var(--f-ui)",
+              color: "var(--t-primary)",
+              background: "transparent",
+              border: "1px solid var(--g)",
+              padding: "12px 24px",
+              borderRadius: 999,
+              cursor: "pointer",
+            }}
+          >
+            Show more
+          </button>
+        </div>
       )}
         </>
       )}

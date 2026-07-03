@@ -11,6 +11,10 @@ export function Refine() {
   const [personId, setPersonId] = useState<string | null>(null);
   const [results, setResults] = useState<ScoredGift[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [more, setMore] = useState(true);
+
+  const PAGE = 7;
 
   const setAxis = (axis: keyof Axes, value: number) => setDials((d) => ({ ...d, [axis]: value }));
 
@@ -19,13 +23,19 @@ export function Refine() {
     api.listPeople().then((p) => setPersonId(p[0]?.id ?? null)).catch(() => setPersonId(null));
   }, []);
 
+  // Re-ranking whenever the dials change resets back to page one.
   useEffect(() => {
     if (!isLive || !personId) return;
     let cancelled = false;
     setLoading(true);
+    setMore(true);
     api
-      .refine(personId, dials)
-      .then((r) => !cancelled && setResults(r))
+      .refine(personId, dials, { limit: PAGE, offset: 0 })
+      .then((r) => {
+        if (cancelled) return;
+        setResults(r);
+        setMore(r.length >= PAGE);
+      })
       .catch(() => !cancelled && setResults([]))
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -33,8 +43,23 @@ export function Refine() {
     };
   }, [personId, dials]);
 
+  // "Load more" pages deeper into the same ranking (no LLM rerank — cheaper,
+  // and the catalog copy is fine past the top picks).
+  const loadMore = () => {
+    if (!personId || loadingMore) return;
+    setLoadingMore(true);
+    api
+      .refine(personId, dials, { limit: PAGE, offset: results.length, rerank: false })
+      .then((r) => {
+        setResults((prev) => [...prev, ...r]);
+        setMore(r.length >= PAGE);
+      })
+      .catch(() => setMore(false))
+      .finally(() => setLoadingMore(false));
+  };
+
   const top = results[0];
-  const rest = results.slice(1, 5);
+  const rest = results.slice(1);
 
   const active = refineDials.filter((def) => dials[def.axis] !== 0).map((def) => def.names[dials[def.axis] + 1].toLowerCase());
   const userSaid = active.length ? "Make it more " + active.slice(0, 2).join(" and ") : "Show me other directions";
@@ -218,7 +243,7 @@ export function Refine() {
           </div>
           {rest.map((g, i) => (
             <div
-              key={g.name}
+              key={g.id}
               style={{
                 display: "flex",
                 background: "var(--bg-card)",
@@ -254,6 +279,27 @@ export function Refine() {
               </div>
             </div>
           ))}
+          {top && more && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="focusring"
+              style={{
+                marginTop: 6,
+                alignSelf: "center",
+                font: "600 12px/1 var(--f-ui)",
+                color: "var(--t-primary)",
+                background: "transparent",
+                border: "1px solid var(--g)",
+                padding: "10px 20px",
+                borderRadius: 999,
+                cursor: loadingMore ? "default" : "pointer",
+                opacity: loadingMore ? 0.6 : 1,
+              }}
+            >
+              {loadingMore ? "Finding more…" : "Load more that fit"}
+            </button>
+          )}
         </div>
       </div>
       )}
